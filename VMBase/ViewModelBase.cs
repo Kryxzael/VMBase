@@ -91,9 +91,9 @@ namespace VMBase
         /// <param name="child"></param>
         /// <param name="property"></param>
         /// <returns></returns>
-        protected Child RegisterChild<Child>(Child child, [CallerMemberName] string property = "") where Child : IDisposable
+        protected Child RegisterChild<Child>(Func<Child> child, [CallerMemberName] string property = "") where Child : IDisposable
         {
-            return (Child)RegisterChildren(new IDisposable[] { child }, property).First();
+            return (Child)RegisterChildren(() => new IDisposable[] { child() }, property).First();
         }
 
         /// <summary>
@@ -103,19 +103,24 @@ namespace VMBase
         /// <param name="children"></param>
         /// <param name="property"></param>
         /// <returns></returns>
-        protected internal Child[] RegisterChildren<Child>(IEnumerable<Child> children, [CallerMemberName] string property = "") where Child : IDisposable
+        protected internal Child[] RegisterChildren<Child>(Func<IEnumerable<Child>> children, [CallerMemberName] string property = "") where Child : IDisposable
         {
-            //If we don't ToArray() this, it can cause trouble if children is a query enumeration, like that made by LINQ
-            //Queries are reevaluated every time they are used and that's bad for us
-            children = children.ToArray();
-
             if (IsDisposed)
                 throw new ObjectDisposedException(GetType().Name, "Cannot register new child view-models for a disposed view-model");
 
-            DisposeChildren(property);
-            ChildVMs.AddRange(children.Select(i => new ChildVMInfo(property, i)));
+            Child[] existingChildren = ChildVMs
+                .Where(i => i.OriginPropertyName == property)
+                .Select(i => i.ChildVM)
+                .OfType<Child>()
+                .ToArray();
 
-            return (Child[])children;
+            if (existingChildren.Any())
+                return existingChildren;
+
+            existingChildren = children().ToArray();
+            ChildVMs.AddRange(existingChildren.Select(i => new ChildVMInfo(property, i)));
+
+            return existingChildren;
         }
 
         /// <summary>
@@ -146,6 +151,7 @@ namespace VMBase
         /// <param name="propertyName"></param>
         protected internal void Notify([CallerMemberName] string propertyName = "")
         {
+            DisposeChildren(propertyName);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
@@ -172,7 +178,7 @@ namespace VMBase
             /// <summary>
             /// Gets the VM
             /// </summary>
-            private IDisposable ChildVM { get; }
+            public IDisposable ChildVM { get; }
 
             /// <summary>
             /// Gets whether this child VM is disposed
