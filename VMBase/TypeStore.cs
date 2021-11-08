@@ -32,7 +32,7 @@ namespace VMBase
         /// <summary>
         /// Gets the fields/properties that will be notified when an item property changes on this type
         /// </summary>
-        private MemberWithAttributes<DependOnItemPropertyAttribute>[] PropertyDependencies { get; }
+        private MemberWithAttributes<DependsOnItemPropertyAttribute>[] PropertyDependencies { get; }
 
         /// <summary>
         /// Creates a new type store of the provided type
@@ -48,7 +48,7 @@ namespace VMBase
                 .ToArray();
 
             PropertyDependencies = type.GetMembers()
-                .Select(i => new MemberWithAttributes<DependOnItemPropertyAttribute>(i))
+                .Select(i => new MemberWithAttributes<DependsOnItemPropertyAttribute>(i))
                 .Where(i => i.Attributes.Any())
                 .ToArray();
         }
