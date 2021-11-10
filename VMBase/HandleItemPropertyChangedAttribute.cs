@@ -9,7 +9,7 @@ namespace VMBase
     /// <summary>
     /// Makes this function execute when the provided property of the item of a VM changes
     /// </summary>
-    [AttributeUsage(AttributeTargets.Method, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Method, Inherited = true, AllowMultiple = true)]
     public sealed class HandleItemPropertyChangedAttribute : Attribute
     {
         /// <summary>

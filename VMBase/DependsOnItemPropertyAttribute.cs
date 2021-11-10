@@ -9,7 +9,7 @@ namespace VMBase
     /// <summary>
     /// Makes this property depend on a property of its item when in a VM.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, Inherited = true, AllowMultiple = true)]
     public sealed class DependsOnItemPropertyAttribute : Attribute
     {
         /// <summary>
