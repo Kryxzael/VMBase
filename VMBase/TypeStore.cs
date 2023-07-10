@@ -35,6 +35,16 @@ namespace VMBase
         private MemberWithAttributes<DependsOnItemPropertyAttribute>[] PropertyDependencies { get; }
 
         /// <summary>
+        /// Gets the methods that will be executed when an extra connection property changes on this type
+        /// </summary>
+        private MemberWithAttributes<HandleExtraPropertyChangedAttribute>[] ExtraPropertyHandlers { get; }
+
+        /// <summary>
+        /// Gets the fields/properties that will be notified when an extra connection property changes on this type
+        /// </summary>
+        private MemberWithAttributes<DependsOnExtraPropertyAttribute>[] ExtraPropertyDependencies { get; }
+
+        /// <summary>
         /// Creates a new type store of the provided type
         /// </summary>
         /// <param name="type"></param>
@@ -49,6 +59,16 @@ namespace VMBase
 
             PropertyDependencies = type.GetMembers()
                 .Select(i => new MemberWithAttributes<DependsOnItemPropertyAttribute>(i))
+                .Where(i => i.Attributes.Any())
+                .ToArray();
+
+            ExtraPropertyHandlers = type.GetMethods()
+                .Select(i => new MemberWithAttributes<HandleExtraPropertyChangedAttribute>(i))
+                .Where(i => i.Attributes.Any())
+                .ToArray();
+
+            ExtraPropertyDependencies = type.GetMembers()
+                .Select(i => new MemberWithAttributes<DependsOnExtraPropertyAttribute>(i))
                 .Where(i => i.Attributes.Any())
                 .ToArray();
         }
@@ -69,6 +89,26 @@ namespace VMBase
             foreach (var i in PropertyDependencies)
             {
                 if (i.Attributes.Any(i => i.PropertyName == property))
+                    vm.Notify(i.Member.Name);
+            }
+        }
+
+        /// <summary>
+        /// Runs a traversal on the provided view model, calling handlers and notifies properties based on an extra connection on the view model.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="vm"></param>
+        internal void NotifyExtraConnection<T>(ViewModelBase<T> vm, string property, string key)
+        {
+            foreach (var i in ExtraPropertyHandlers)
+            {
+                if (i.Attributes.Any(i => i.PropertyName == property && i.Key == key))
+                    ((MethodInfo)i.Member).Invoke(vm, null);
+            }
+
+            foreach (var i in ExtraPropertyDependencies)
+            {
+                if (i.Attributes.Any(i => i.PropertyName == property && i.Key == key))
                     vm.Notify(i.Member.Name);
             }
         }

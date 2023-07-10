@@ -28,6 +28,11 @@ namespace VMBase
         private List<ChildVMInfo> ChildVMs { get; } = new List<ChildVMInfo>();
 
         /// <summary>
+        /// Holds any connections to notifiable objects that are not the Item of this VM
+        /// </summary>
+        private Dictionary<INotifyPropertyChanged, PropertyChangedEventHandler> ExtraConnections { get; } = new Dictionary<INotifyPropertyChanged, PropertyChangedEventHandler>();
+
+        /// <summary>
         /// Gets whether this managed view model has been disposed
         /// </summary>
         public bool IsDisposed { get; private set; }
@@ -66,6 +71,9 @@ namespace VMBase
 
             if (Item is INotifyPropertyChanged notifier)
                 notifier.PropertyChanged -= OnItemPropertyChangedRaw;
+
+            foreach (var i in ExtraConnections)
+                i.Key.PropertyChanged -= i.Value;
 
             foreach (var i in ChildVMs)
                 i.Dispose();
@@ -108,19 +116,24 @@ namespace VMBase
             if (IsDisposed)
                 throw new ObjectDisposedException(GetType().Name, "Cannot register new child view-models for a disposed view-model");
 
-            Child[] existingChildren = ChildVMs
-                .Where(i => i.OriginPropertyName == property)
-                .Select(i => i.ChildVM)
-                .OfType<Child>()
-                .ToArray();
+            //lock (this)
+            //{
+                Child[] existingChildren = ChildVMs
+                    .Where(i => i.OriginPropertyName == property)
+                    .Select(i => i.ChildVM)
+                    .OfType<Child>()
+                    .ToArray();
 
-            if (existingChildren.Any())
+                if (existingChildren.Any())
+                    return existingChildren;
+
+                existingChildren = children().ToArray();
+                ChildVMs.AddRange(existingChildren.Select(i => new ChildVMInfo(property, i)));
+
                 return existingChildren;
 
-            existingChildren = children().ToArray();
-            ChildVMs.AddRange(existingChildren.Select(i => new ChildVMInfo(property, i)));
-
-            return existingChildren;
+            //}
+            
         }
 
         /// <summary>
@@ -164,6 +177,44 @@ namespace VMBase
             foreach (string i in propertyNames)
                 Notify(i);
         }
+
+        /// <summary>
+        /// Creates and manages a PropertyChanged handler for the provided source. Use the DependsOnExtraProperty with the same key to set up extra handlers
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="key"></param>
+        protected void CreateExtraConnection(INotifyPropertyChanged source, string key)
+        {
+            if (ExtraConnections.ContainsKey(source))
+                throw new ArgumentException("A connection has already been made for this source");
+
+            PropertyChangedEventHandler handler = (s, e) => OnExtraConnectionPropertyChangedRaw(key, e.PropertyName);
+
+            ExtraConnections[source] = handler;
+            source.PropertyChanged += handler;
+        }
+
+        /// <summary>
+        /// Handles an extra connection-source's PropertyChanged event
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnExtraConnectionPropertyChangedRaw(string key, string? propertyName)
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException("Still handling events in disposed view-model");
+
+            TypeStore.GetTypeStore(GetType()).NotifyExtraConnection(this, propertyName!, key);
+
+            OnExtraConnectionPropertyChanged(propertyName!, key);
+        }
+
+        /// <summary>
+        /// When overridden in a derived class: Handles a PropertyChanged event of any of this VM's extra connections
+        /// </summary>
+        /// <param name="propertyName"></param>
+        protected virtual void OnExtraConnectionPropertyChanged(string propertyName, string key)
+        {  }
 
         /// <summary>
         /// Internal information about child VMs and the property they are attached to
