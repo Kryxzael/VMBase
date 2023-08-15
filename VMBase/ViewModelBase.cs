@@ -17,6 +17,7 @@ namespace VMBase
     /// <typeparam name="T"></typeparam>
     public abstract class ViewModelBase<T> : INotifyPropertyChanged, IDisposable
     {
+
         /// <summary>
         /// <inheritdoc />
         /// </summary>
@@ -52,6 +53,8 @@ namespace VMBase
 
             if (Item is INotifyPropertyChanged notifier)
                 notifier.PropertyChanged += OnItemPropertyChangedRaw;
+
+            Debugging.AttemptRegisterDebugData(this);
         }
 
         ~ViewModelBase()
@@ -67,6 +70,8 @@ namespace VMBase
             if (IsDisposed)
                 return;
 
+            OnDisposing();
+
             IsDisposed = true;
 
             if (Item is INotifyPropertyChanged notifier)
@@ -77,6 +82,9 @@ namespace VMBase
 
             foreach (var i in ChildVMs)
                 i.Dispose();
+
+            OnDisposed();
+            Debugging.AttemptUnregisterDebugData(this);
         }
 
         /// <summary>
@@ -91,6 +99,16 @@ namespace VMBase
                 ChildVMs.Remove(i);
             }
         }
+
+        /// <summary>
+        /// When overridden in a derived class: Runs before the contents of this view model are disposed
+        /// </summary>
+        protected virtual void OnDisposing() { }
+
+        /// <summary>
+        /// When overridden in a derived class: Runs after the contents of this view model are disposed
+        /// </summary>
+        protected virtual void OnDisposed() { }
 
         /// <summary>
         /// Disposes all children of the provided property and registers the provided child as the new child of the property
@@ -116,8 +134,8 @@ namespace VMBase
             if (IsDisposed)
                 throw new ObjectDisposedException(GetType().Name, "Cannot register new child view-models for a disposed view-model");
 
-            //lock (this)
-            //{
+            lock (this)
+            {
                 Child[] existingChildren = ChildVMs
                     .Where(i => i.OriginPropertyName == property)
                     .Select(i => i.ChildVM)
@@ -132,7 +150,7 @@ namespace VMBase
 
                 return existingChildren;
 
-            //}
+            }
             
         }
 
@@ -215,6 +233,15 @@ namespace VMBase
         /// <param name="propertyName"></param>
         protected virtual void OnExtraConnectionPropertyChanged(string propertyName, string key)
         {  }
+
+        /// <summary>
+        /// <inheritdoc />
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            return $"{GetType().Name} ({Item})";
+        }
 
         /// <summary>
         /// Internal information about child VMs and the property they are attached to
